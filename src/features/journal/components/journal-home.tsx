@@ -61,7 +61,7 @@ const faqs = [
   {
     question: "Is authentication included yet?",
     answer:
-      "Not yet. This landing page focuses on the premium product experience first. Authentication and Supabase can be added once the core interface is settled.",
+      "Yes. Sign in or create an account to access your private journal, sync entries to the cloud, and keep your reflections safe across devices.",
   },
   {
     question: "Will the journal work well on mobile?",
@@ -111,11 +111,11 @@ export function JournalHome() {
                 returning to.
               </p>
               <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-                <AnchorButton href="#preview" size="lg">
-                  Start with today
+                <AnchorButton href="/login" size="lg">
+                  Sign in
                 </AnchorButton>
-                <AnchorButton href="#features" size="lg" variant="secondary">
-                  Explore the experience
+                <AnchorButton href="/register" size="lg" variant="secondary">
+                  Create account
                 </AnchorButton>
               </div>
             </div>
