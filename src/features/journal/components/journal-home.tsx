@@ -118,6 +118,7 @@ export function JournalHome() {
                   Create account
                 </AnchorButton>
               </div>
+              <p className="mt-4 text-sm text-muted">v1.0 — now with authentication</p>
             </div>
           </Reveal>
 
