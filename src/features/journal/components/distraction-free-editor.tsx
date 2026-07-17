@@ -7,9 +7,10 @@ import { Card } from "@/components/ui/card";
 type EditorProps = {
   userId: string;
   userName: string;
+  entryId?: string;
 };
 
-type SaveStatus = "idle" | "saving" | "saved";
+type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 type StoredEntry = {
   title: string;
@@ -43,9 +44,9 @@ function buildMarkdownPreview(title: string, markdown: string) {
   }
 
   const escaped = markdown
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/&/g, "&")
+    .replace(/</g, "<")
+    .replace(/>/g, ">");
 
   const lines = escaped.split(/\n/);
   const html: string[] = [];
@@ -109,7 +110,7 @@ function buildMarkdownPreview(title: string, markdown: string) {
   `;
 }
 
-export function DistractionFreeEditor({ userId, userName }: EditorProps) {
+export function DistractionFreeEditor({ userId, userName, entryId }: EditorProps) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [mood, setMood] = useState("calm");
@@ -117,6 +118,8 @@ export function DistractionFreeEditor({ userId, userName }: EditorProps) {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [currentEntryId, setCurrentEntryId] = useState<string | null>(entryId ?? null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const storageKey = useMemo(() => getStorageKey(userId), [userId]);
   const deferredContent = useDeferredValue(content);
@@ -142,22 +145,36 @@ export function DistractionFreeEditor({ userId, userName }: EditorProps) {
     setHydrated(true);
   }, [storageKey]);
 
-  useEffect(() => {
-    if (!hydrated || typeof window === "undefined") {
+  async function saveToSupabase() {
+    if (!currentEntryId) {
       return;
     }
 
-    const timer = window.setTimeout(() => {
-      setSaveStatus("saving");
-      const payload: StoredEntry = {
-        title,
-        content,
-        mood,
-        tagsInput,
-        updatedAt: new Date().toISOString(),
-      };
+    setSaveStatus("saving");
+    setErrorMessage(null);
 
-      window.localStorage.setItem(storageKey, JSON.stringify(payload));
+    const tags = tagsInput
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+
+    try {
+      const response = await fetch(`/api/entries/${currentEntryId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          content,
+          mood,
+          tags,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error ?? "Failed to save entry.");
+      }
+
       setLastSavedAt(
         new Date().toLocaleTimeString([], {
           hour: "numeric",
@@ -165,10 +182,87 @@ export function DistractionFreeEditor({ userId, userName }: EditorProps) {
         }),
       );
       setSaveStatus("saved");
-    }, 450);
+    } catch (error) {
+      setSaveStatus("error");
+      setErrorMessage(error instanceof Error ? error.message : "Failed to save entry.");
+    }
+  }
+
+  async function createEntryInSupabase() {
+    setSaveStatus("saving");
+    setErrorMessage(null);
+
+    const tags = tagsInput
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+
+    try {
+      const response = await fetch("/api/entries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          content,
+          mood,
+          tags,
+          entry_date: new Date().toISOString().split("T")[0],
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error ?? "Failed to create entry.");
+      }
+
+      const payload = await response.json();
+      const newId = payload.entry.id;
+      setCurrentEntryId(newId);
+
+      setLastSavedAt(
+        new Date().toLocaleTimeString([], {
+          hour: "numeric",
+          minute: "2-digit",
+        }),
+      );
+      setSaveStatus("saved");
+    } catch (error) {
+      setSaveStatus("error");
+      setErrorMessage(error instanceof Error ? error.message : "Failed to create entry.");
+    }
+  }
+
+  useEffect(() => {
+    if (!hydrated || typeof window === "undefined") {
+      return;
+    }
+
+    const payload: StoredEntry = {
+      title,
+      content,
+      mood,
+      tagsInput,
+      updatedAt: new Date().toISOString(),
+    };
+
+    window.localStorage.setItem(storageKey, JSON.stringify(payload));
+  }, [content, hydrated, mood, storageKey, tagsInput, title]);
+
+  useEffect(() => {
+    if (!hydrated || typeof window === "undefined") {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (currentEntryId) {
+        saveToSupabase();
+      } else {
+        createEntryInSupabase();
+      }
+    }, 1200);
 
     return () => window.clearTimeout(timer);
-  }, [content, hydrated, mood, storageKey, tagsInput, title]);
+  }, [content, currentEntryId, hydrated, mood, tagsInput, title]);
 
   const tags = useMemo(() => {
     return tagsInput
@@ -222,10 +316,17 @@ export function DistractionFreeEditor({ userId, userName }: EditorProps) {
                 </select>
               </label>
 
-              <div className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-2 text-sm text-muted-strong">
+              <div
+                className={`rounded-full border px-3 py-2 text-sm ${
+                  saveStatus === "error"
+                    ? "border-rose/45 bg-rose/12 text-rose"
+                    : "border-white/10 bg-white/[0.045] text-muted-strong"
+                }`}
+              >
                 {saveStatus === "saving" && "Saving…"}
                 {saveStatus === "saved" && `Autosaved • ${lastSavedAt ?? "just now"}`}
                 {saveStatus === "idle" && "Ready to save"}
+                {saveStatus === "error" && (errorMessage ?? "Save failed")}
               </div>
             </div>
           </div>
@@ -299,7 +400,7 @@ export function DistractionFreeEditor({ userId, userName }: EditorProps) {
               <div>
                 <p className="ds-caption">Live preview</p>
                 <h2 className="mt-2 text-2xl font-semibold text-porcelain">
-                  {userName}&apos;s quiet page
+                  {userName}'s quiet page
                 </h2>
               </div>
               <Button size="sm" variant="ghost">
