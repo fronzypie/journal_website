@@ -64,11 +64,18 @@ export function LandingHeader() {
         <div className="flex items-center gap-2">
           <AnchorButton
             className="hidden sm:inline-flex"
-            href="#preview"
+            href="/login"
+            size="sm"
+          >
+            Sign in
+          </AnchorButton>
+          <AnchorButton
+            className="hidden sm:inline-flex"
+            href="/register"
             size="sm"
             variant="secondary"
           >
-            Preview
+            Create account
           </AnchorButton>
 
           <button
