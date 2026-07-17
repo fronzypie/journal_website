@@ -1,26 +1,168 @@
 @import "tailwindcss";
+@import "../styles/tokens.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+:root[data-theme="dawn"] {
+  color-scheme: dark;
+  --background: #090806;
+  --foreground: #f7f0e7;
+  --muted: #b7a999;
+  --muted-strong: #e3d5c0;
+  --surface: #15110f;
+  --surface-soft: #201914;
+  --surface-elevated: rgba(255, 244, 225, 0.075);
+  --surface-frosted: rgba(255, 244, 225, 0.11);
+  --porcelain: #fff7ed;
+  --graphite: #15110f;
+  --ink: #090806;
+  --sage: #a6b9a7;
+  --blue: #c8c0f0;
+  --amber: #e2bf79;
+  --rose: #dea3a0;
+  --line: rgba(255, 244, 225, 0.12);
+  --line-strong: rgba(255, 244, 225, 0.2);
+}
+
+:root[data-theme="paper"] {
+  color-scheme: light;
+  --background: #f4efe7;
+  --foreground: #1a1714;
+  --muted: #625a50;
+  --muted-strong: #4a433a;
+  --surface: #fffaf2;
+  --surface-soft: #f0e7da;
+  --surface-elevated: rgba(255, 255, 255, 0.82);
+  --surface-frosted: rgba(255, 255, 255, 0.92);
+  --porcelain: #1a1714;
+  --graphite: #2d2721;
+  --ink: #18120c;
+  --sage: #6c8a7b;
+  --blue: #6887ad;
+  --amber: #b88a2e;
+  --rose: #b36d65;
+  --line: rgba(45, 39, 33, 0.12);
+  --line-strong: rgba(45, 39, 33, 0.18);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-strong: var(--muted-strong);
+  --color-surface: var(--surface);
+  --color-surface-soft: var(--surface-soft);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-frosted: var(--surface-frosted);
+  --color-porcelain: var(--porcelain);
+  --color-graphite: var(--graphite);
+  --color-ink: var(--ink);
+  --color-sage: var(--sage);
+  --color-blue: var(--blue);
+  --color-amber: var(--amber);
+  --color-rose: var(--rose);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --radius-xs: var(--ds-radius-xs);
+  --radius-sm: var(--ds-radius-sm);
+  --radius-md: var(--ds-radius-md);
+  --radius-lg: var(--ds-radius-lg);
+  --radius-xl: var(--ds-radius-xl);
+  --shadow-soft: var(--ds-shadow-soft);
+  --shadow-elevated: var(--ds-shadow-elevated);
+  --shadow-glow: var(--ds-shadow-glow);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+::selection {
+  background: rgba(245, 239, 229, 0.24);
+  color: #fffaf0;
+}
+
+textarea {
+  font: inherit;
+}
+
+@utility ds-focus-ring {
+  outline: 2px solid transparent;
+  outline-offset: 3px;
+}
+
+@utility ds-focus-visible {
+  &:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--blue) 76%, white 24%);
+    outline-offset: 3px;
+  }
+}
+
+@utility ds-transition {
+  transition-duration: var(--motion-base);
+  transition-property:
+    color, background-color, border-color, opacity, box-shadow, transform;
+  transition-timing-function: var(--ease-standard);
+}
+
+@utility ds-surface {
+  background: var(--surface-elevated);
+  border: 1px solid var(--line);
+  box-shadow: var(--ds-shadow-soft);
+  backdrop-filter: blur(22px);
+}
+
+@utility ds-surface-strong {
+  background: var(--surface-frosted);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--ds-shadow-elevated);
+  backdrop-filter: blur(28px);
+}
+
+@utility ds-text-display {
+  color: var(--foreground);
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 0.98;
+  text-wrap: balance;
+}
+
+@utility ds-text-body {
+  color: color-mix(in oklab, var(--foreground) 72%, transparent);
+  line-height: 1.72;
+}
+
+@utility ds-caption {
+  color: color-mix(in oklab, var(--foreground) 58%, transparent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+@utility ds-page-pad {
+  padding-inline: clamp(1.25rem, 4vw, 2.5rem);
+}
+
+@utility ds-container {
+  margin-inline: auto;
+  max-width: 80rem;
+  width: 100%;
+}
+
+@utility sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
