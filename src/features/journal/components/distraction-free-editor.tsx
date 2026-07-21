@@ -1,8 +1,9 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { renderEditorPreview } from "@/lib/markdown";
 
 type EditorProps = {
   userId: string;
@@ -32,84 +33,6 @@ function getStorageKey(userId: string) {
   return `journal-editor:${userId}`;
 }
 
-function buildMarkdownPreview(title: string, markdown: string) {
-  if (!markdown.trim()) {
-    return `
-      <div class="space-y-3">
-        <p class="text-sm uppercase tracking-[0.24em] text-muted">Preview</p>
-        <h2 class="text-2xl font-semibold text-porcelain">${title || "Untitled entry"}</h2>
-        <p class="text-sm text-muted">Start writing to see your rendered markdown here.</p>
-      </div>
-    `;
-  }
-
-  const escaped = markdown
-    .replace(/&/g, "&")
-    .replace(/</g, "<")
-    .replace(/>/g, ">");
-
-  const lines = escaped.split(/\n/);
-  const html: string[] = [];
-  let inList = false;
-
-  const closeList = () => {
-    if (inList) {
-      html.push("</ul>");
-      inList = false;
-    }
-  };
-
-  const renderInline = (value: string) =>
-    value
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*(.+?)\*/g, "<em>$1</em>");
-
-  lines.forEach((line) => {
-    const trimmed = line.trim();
-
-    if (!trimmed) {
-      closeList();
-      return;
-    }
-
-    if (/^#{1,3}\s+/.test(trimmed)) {
-      closeList();
-      const level = Math.min(3, trimmed.match(/^#+/)?.[0].length ?? 1);
-      const content = renderInline(trimmed.replace(/^#{1,3}\s+/, ""));
-      html.push(`<h${level}>${content}</h${level}>`);
-      return;
-    }
-
-    if (/^>\s+/.test(trimmed)) {
-      closeList();
-      html.push(`<blockquote>${renderInline(trimmed.replace(/^>\s+/, ""))}</blockquote>`);
-      return;
-    }
-
-    if (/^[-*]\s+/.test(trimmed)) {
-      if (!inList) {
-        html.push("<ul>");
-        inList = true;
-      }
-      html.push(`<li>${renderInline(trimmed.replace(/^[-*]\s+/, ""))}</li>`);
-      return;
-    }
-
-    closeList();
-    html.push(`<p>${renderInline(trimmed)}</p>`);
-  });
-
-  closeList();
-
-  return `
-    <div class="space-y-3">
-      <p class="text-sm uppercase tracking-[0.24em] text-muted">Preview</p>
-      <h2 class="text-2xl font-semibold text-porcelain">${title || "Untitled entry"}</h2>
-      <div class="space-y-3 text-sm leading-7 text-muted-strong">${html.join("")}</div>
-    </div>
-  `;
-}
-
 export function DistractionFreeEditor({ userId, userName, entryId }: EditorProps) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -133,6 +56,7 @@ export function DistractionFreeEditor({ userId, userName, entryId }: EditorProps
       const raw = window.localStorage.getItem(storageKey);
       if (raw) {
         const parsed = JSON.parse(raw) as StoredEntry;
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Hydrates client-only localStorage draft after mount.
         setTitle(parsed.title ?? "");
         setContent(parsed.content ?? "");
         setMood(parsed.mood ?? "calm");
@@ -145,7 +69,7 @@ export function DistractionFreeEditor({ userId, userName, entryId }: EditorProps
     setHydrated(true);
   }, [storageKey]);
 
-  async function saveToSupabase() {
+  const saveToSupabase = useCallback(async () => {
     if (!currentEntryId) {
       return;
     }
@@ -186,9 +110,14 @@ export function DistractionFreeEditor({ userId, userName, entryId }: EditorProps
       setSaveStatus("error");
       setErrorMessage(error instanceof Error ? error.message : "Failed to save entry.");
     }
-  }
+  }, [content, currentEntryId, mood, tagsInput, title]);
 
-  async function createEntryInSupabase() {
+  const createEntryInSupabase = useCallback(async () => {
+    if (!title.trim() && !content.trim()) {
+      setSaveStatus("idle");
+      return;
+    }
+
     setSaveStatus("saving");
     setErrorMessage(null);
 
@@ -230,7 +159,7 @@ export function DistractionFreeEditor({ userId, userName, entryId }: EditorProps
       setSaveStatus("error");
       setErrorMessage(error instanceof Error ? error.message : "Failed to create entry.");
     }
-  }
+  }, [content, mood, tagsInput, title]);
 
   useEffect(() => {
     if (!hydrated || typeof window === "undefined") {
@@ -262,7 +191,16 @@ export function DistractionFreeEditor({ userId, userName, entryId }: EditorProps
     }, 1200);
 
     return () => window.clearTimeout(timer);
-  }, [content, currentEntryId, hydrated, mood, tagsInput, title]);
+  }, [
+    content,
+    createEntryInSupabase,
+    currentEntryId,
+    hydrated,
+    mood,
+    saveToSupabase,
+    tagsInput,
+    title,
+  ]);
 
   const tags = useMemo(() => {
     return tagsInput
@@ -283,7 +221,7 @@ export function DistractionFreeEditor({ userId, userName, entryId }: EditorProps
   const characterCount = content.length;
   const readingTime = useMemo(() => Math.max(1, Math.ceil(wordCount / 180)), [wordCount]);
   const previewMarkup = useMemo(
-    () => buildMarkdownPreview(title, deferredContent),
+    () => renderEditorPreview(title, deferredContent),
     [deferredContent, title],
   );
 
@@ -400,7 +338,7 @@ export function DistractionFreeEditor({ userId, userName, entryId }: EditorProps
               <div>
                 <p className="ds-caption">Live preview</p>
                 <h2 className="mt-2 text-2xl font-semibold text-porcelain">
-                  {userName}'s quiet page
+                  {userName}&apos;s quiet page
                 </h2>
               </div>
               <Button size="sm" variant="ghost">

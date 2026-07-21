@@ -135,6 +135,7 @@ export function SettingsView({
     );
     const storedPrivacy = readJSON<PrivacySettings>("journal-privacy", defaultPrivacy);
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Hydrates client-only localStorage preferences after mount.
     setTheme(storedTheme);
     setNotifications(storedNotifications);
     setPrivacy(storedPrivacy);
@@ -265,7 +266,7 @@ export function SettingsView({
     window.localStorage.removeItem("journal-theme");
     window.localStorage.removeItem("journal-notifications");
     window.localStorage.removeItem("journal-privacy");
-    window.localStorage.removeItem(`journal-collections`);
+    window.localStorage.removeItem(`journal-collections:${userId}`);
     window.localStorage.removeItem(`journal-editor:${userId}`);
 
     await signOut();

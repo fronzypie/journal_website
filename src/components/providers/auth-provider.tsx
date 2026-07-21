@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Session, User } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [supabase]);
 
-  async function signIn(email: string, password: string) {
+  const signIn = useCallback(async (email: string, password: string) => {
     setLoading(true);
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -78,9 +78,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
 
     return { error: error?.message ?? null };
-  }
+  }, [supabase]);
 
-  async function signUp(email: string, password: string, name?: string) {
+  const signUp = useCallback(async (email: string, password: string, name?: string) => {
     setLoading(true);
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -103,27 +103,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       error: error?.message ?? null,
       needsConfirmation: !data.session,
     };
-  }
+  }, [supabase]);
 
-  async function signOut() {
+  const signOut = useCallback(async () => {
     setLoading(true);
     await supabase.auth.signOut();
     setSession(null);
     setUser(null);
     setLoading(false);
     router.push("/login");
-  }
+  }, [router, supabase]);
 
-  async function resetPassword(email: string) {
+  const resetPassword = useCallback(async (email: string) => {
     setLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
     setLoading(false);
     return { error: error?.message ?? null };
-  }
+  }, [supabase]);
 
-  async function updateProfile(fullName: string) {
+  const updateProfile = useCallback(async (fullName: string) => {
     setLoading(true);
 
     const { data, error } = await supabase.auth.updateUser({
@@ -146,14 +146,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setLoading(false);
     return { error: error?.message ?? null };
-  }
+  }, [supabase]);
 
-  async function updatePassword(password: string) {
+  const updatePassword = useCallback(async (password: string) => {
     setLoading(true);
     const { error } = await supabase.auth.updateUser({ password });
     setLoading(false);
     return { error: error?.message ?? null };
-  }
+  }, [supabase]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -167,7 +167,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       updatePassword,
       user,
     }),
-    [loading, session, user],
+    [
+      loading,
+      resetPassword,
+      session,
+      signIn,
+      signOut,
+      signUp,
+      updatePassword,
+      updateProfile,
+      user,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

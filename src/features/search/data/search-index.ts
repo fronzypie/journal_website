@@ -17,7 +17,7 @@ export type SearchDocument = {
   title: string;
 };
 
-export const searchDocuments: SearchDocument[] = [
+export const publicSearchDocuments: SearchDocument[] = [
   {
     id: "page-home",
     kind: "page",

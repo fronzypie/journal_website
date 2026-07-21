@@ -1,70 +1,41 @@
 "use client";
 
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Reveal } from "@/features/journal/components/reveal";
-import {
-  searchDocuments,
-  type SearchDocument,
-} from "@/features/search/data/search-index";
-
-function scoreDocument(document: SearchDocument, query: string) {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) {
-    return 1;
-  }
-
-  const tokens = normalized.split(/\s+/).filter(Boolean);
-  const searchSpace = [
-    document.title,
-    document.content,
-    document.tags.join(" "),
-    document.mood ?? "",
-    document.collection ?? "",
-    document.date ?? "",
-    document.kind,
-  ]
-    .join(" ")
-    .toLowerCase();
-
-  if (!tokens.every((token) => searchSpace.includes(token))) {
-    return 0;
-  }
-
-  let score = 1;
-  if (document.title.toLowerCase().includes(normalized)) score += 6;
-  if (document.collection?.toLowerCase().includes(normalized)) score += 4;
-  if (document.tags.some((tag) => tag.toLowerCase().includes(normalized))) score += 3;
-  if (document.mood?.toLowerCase().includes(normalized)) score += 2;
-  if (document.date?.toLowerCase().includes(normalized)) score += 2;
-  if (document.content.toLowerCase().includes(normalized)) score += 1;
-
-  return score;
-}
-
-function formatResultLabel(document: SearchDocument) {
-  if (document.kind === "collection") return "Collection";
-  if (document.kind === "page") return "Page";
-  return "Entry";
-}
+import type { SearchDocument } from "@/features/search/data/search-index";
+import { formatSearchResultLabel, searchAndRankDocuments } from "@/features/search/data/search-utils";
 
 export function SearchResultsView() {
   const [query, setQuery] = useState("");
+  const [documents, setDocuments] = useState<SearchDocument[]>([]);
   const deferredQuery = useDeferredValue(query);
 
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadDocuments() {
+      const response = await fetch("/api/search-documents", {
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        return;
+      }
+
+      const payload = (await response.json()) as { documents?: SearchDocument[] };
+      setDocuments(payload.documents ?? []);
+    }
+
+    void loadDocuments();
+
+    return () => controller.abort();
+  }, []);
+
   const results = useMemo(() => {
-    return searchDocuments
-      .map((document) => ({ document, score: scoreDocument(document, deferredQuery) }))
-      .filter((item) => item.score > 0)
-      .sort(
-        (left, right) =>
-          right.score - left.score ||
-          left.document.title.localeCompare(right.document.title),
-      )
-      .map((item) => item.document);
-  }, [deferredQuery]);
+    return searchAndRankDocuments(documents, deferredQuery);
+  }, [deferredQuery, documents]);
 
   return (
     <AppShell>
@@ -85,7 +56,7 @@ export function SearchResultsView() {
               <p className="ds-caption">Everything indexed</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm text-muted-strong">
-                  {searchDocuments.length} documents
+                  {documents.length} documents
                 </span>
                 <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm text-muted-strong">
                   {results.length} matches
@@ -115,7 +86,7 @@ export function SearchResultsView() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="ds-caption">{formatResultLabel(document)}</p>
+                    <p className="ds-caption">{formatSearchResultLabel(document)}</p>
                     <h2 className="mt-2 text-xl font-medium text-porcelain">
                       {document.title}
                     </h2>

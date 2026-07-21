@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState, type DragEvent } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Image from "next/image";
 import { AppShell } from "@/components/layout/app-shell";
@@ -8,10 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
 import { Reveal } from "@/features/journal/components/reveal";
-import {
-  initialCollections,
-  type JournalCollection,
-} from "@/features/journal/data/collection-data";
+import type { JournalCollection } from "@/features/journal/data/collection-data";
 import { motionEase } from "@/lib/motion";
 
 type DraftState = {
@@ -21,9 +18,9 @@ type DraftState = {
   tone: string;
 };
 
-function getStorageKey(userId: string) {
-  return `journal-collections:${userId}`;
-}
+type CollectionsViewProps = {
+  initialCollections: JournalCollection[];
+};
 
 const coverPresets = [
   "https://images.unsplash.com/photo-1500375592092-40eb2168fd21?auto=format&fit=crop&w=1200&q=80",
@@ -32,10 +29,6 @@ const coverPresets = [
   "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80",
   "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&w=1200&q=80",
 ] as const;
-
-function createId(name: string) {
-  return `${name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}-${Date.now()}`;
-}
 
 function reorder(items: JournalCollection[], fromId: string, toId: string) {
   const sourceIndex = items.findIndex((item) => item.id === fromId);
@@ -49,39 +42,6 @@ function reorder(items: JournalCollection[], fromId: string, toId: string) {
   const [moved] = next.splice(sourceIndex, 1);
   next.splice(targetIndex, 0, moved);
   return next;
-}
-
-function useCollectionsState(userId: string) {
-  const storageKey = getStorageKey(userId);
-  const [collections, setCollections] = useState<JournalCollection[]>(initialCollections);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    const raw = window.localStorage.getItem(storageKey);
-
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw) as JournalCollection[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setCollections(parsed);
-        }
-      } catch {
-        // Ignore malformed storage.
-      }
-    }
-
-    setHydrated(true);
-  }, [storageKey]);
-
-  useEffect(() => {
-    if (!hydrated) {
-      return;
-    }
-
-    window.localStorage.setItem(storageKey, JSON.stringify(collections));
-  }, [collections, hydrated, storageKey]);
-
-  return { collections, setCollections };
 }
 
 const CollectionCard = memo(function CollectionCard({
@@ -100,24 +60,24 @@ const CollectionCard = memo(function CollectionCard({
   isSelected: boolean;
   onDelete: (id: string) => void;
   onDragEnd: () => void;
-  onDragOver: (id: string, event: any) => void;
-  onDragStart: (id: string, event: any) => void;
+  onDragOver: (id: string, event: DragEvent<HTMLElement>) => void;
+  onDragStart: (id: string, event: DragEvent<HTMLElement>) => void;
   onDrop: (id: string) => void;
-  onSelect: (id: string) => void;
+  onSelect: (collection: JournalCollection) => void;
 }) {
   return (
     <motion.article
       className={`group overflow-hidden rounded-[1.5rem] border bg-white/[0.035] shadow-soft ${isSelected ? "border-white/20" : "border-white/10"}`}
       draggable
-      onDragEnd={onDragEnd}
-      onDragOver={(event) => onDragOver(collection.id, event)}
-      onDragStart={(event) => onDragStart(collection.id, event)}
-      onDrop={() => onDrop(collection.id)}
+      onDragEndCapture={onDragEnd}
+      onDragOverCapture={(event) => onDragOver(collection.id, event)}
+      onDragStartCapture={(event) => onDragStart(collection.id, event)}
+      onDropCapture={() => onDrop(collection.id)}
       style={{ opacity: isDragging ? 0.78 : 1 }}
       whileHover={{ y: -4 }}
       whileTap={{ scale: 0.99 }}
     >
-      <button className="block w-full text-left" onClick={() => onSelect(collection.id)} type="button">
+      <button className="block w-full text-left" onClick={() => onSelect(collection)} type="button">
         <div className="relative min-h-56 overflow-hidden">
           <Image
             alt={collection.name}
@@ -146,7 +106,7 @@ const CollectionCard = memo(function CollectionCard({
         <p className="ds-text-body text-sm leading-7">{collection.summary}</p>
 
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" onClick={() => onSelect(collection.id)}>
+          <Button size="sm" variant="secondary" onClick={() => onSelect(collection)}>
             Open
           </Button>
           <Button size="sm" variant="ghost" onClick={() => onDelete(collection.id)}>
@@ -158,91 +118,180 @@ const CollectionCard = memo(function CollectionCard({
   );
 });
 
-export function CollectionsView({ userId }: { userId: string }) {
+export function CollectionsView({ initialCollections }: CollectionsViewProps) {
   const reducedMotion = useReducedMotion();
-  const { collections, setCollections } = useCollectionsState(userId);
-  const [selectedId, setSelectedId] = useState<string | null>(collections[0]?.id ?? null);
+  const [collections, setCollections] = useState<JournalCollection[]>(initialCollections);
+  const [selectedId, setSelectedId] = useState<string | null>(initialCollections[0]?.id ?? null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<DraftState>({
-    coverImage: coverPresets[0],
-    name: "",
-    summary: "",
-    tone: "",
-  });
-
-  useEffect(() => {
-    if (!selectedId && collections[0]) {
-      setSelectedId(collections[0].id);
+  const [draft, setDraft] = useState<DraftState>(() => {
+    const firstCollection = initialCollections[0];
+    if (!firstCollection) {
+      return {
+        coverImage: coverPresets[0],
+        name: "",
+        summary: "",
+        tone: "",
+      };
     }
-  }, [collections, selectedId]);
+
+    return {
+      coverImage: firstCollection.coverImage,
+      name: firstCollection.name,
+      summary: firstCollection.summary,
+      tone: firstCollection.tone,
+    };
+  });
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const selectedCollection = useMemo(
     () => collections.find((collection) => collection.id === selectedId) ?? null,
     [collections, selectedId],
   );
 
-  useEffect(() => {
-    if (!selectedCollection) {
-      return;
-    }
-
+  const selectCollection = useCallback((collection: JournalCollection) => {
+    setSelectedId(collection.id);
     setDraft({
-      coverImage: selectedCollection.coverImage,
-      name: selectedCollection.name,
-      summary: selectedCollection.summary,
-      tone: selectedCollection.tone,
+      coverImage: collection.coverImage,
+      name: collection.name,
+      summary: collection.summary,
+      tone: collection.tone,
     });
-  }, [selectedCollection]);
+  }, []);
 
-  const createCollection = useCallback(() => {
+  const syncOrder = useCallback(async (nextCollections: JournalCollection[]) => {
+    await fetch("/api/collections", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        orderedIds: nextCollections.map((collection, index) => ({
+          id: collection.id,
+          sort_order: index,
+        })),
+      }),
+    });
+  }, []);
+
+  const createCollection = useCallback(async () => {
     if (!draft.name.trim()) {
       return;
     }
 
-    const nextCollection: JournalCollection = {
-      id: createId(draft.name),
-      name: draft.name.trim(),
-      summary: draft.summary.trim() || "A collection for the moments you want to keep close.",
-      tone: draft.tone.trim() || "A new collection",
-      itemCount: 0,
-      coverImage: draft.coverImage.trim() || coverPresets[0],
-    };
+    setBusy(true);
+    setStatusMessage(null);
 
-    setCollections((current) => [nextCollection, ...current]);
-    setSelectedId(nextCollection.id);
-  }, [draft.coverImage, draft.name, draft.summary, draft.tone, setCollections]);
+    try {
+      const response = await fetch("/api/collections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: draft.name.trim(),
+          summary: draft.summary.trim(),
+          tone: draft.tone.trim(),
+          cover_image: draft.coverImage.trim(),
+        }),
+      });
 
-  const renameSelected = useCallback(() => {
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error ?? "Failed to create collection.");
+      }
+
+      const payload = await response.json();
+      const nextCollection: JournalCollection = {
+        id: payload.collection.id,
+        name: payload.collection.name,
+        tone: payload.collection.tone,
+        summary: payload.collection.summary,
+        coverImage: payload.collection.cover_image,
+        itemCount: 0,
+      };
+
+      setCollections((current) => [nextCollection, ...current]);
+      setSelectedId(nextCollection.id);
+      setDraft({
+        coverImage: nextCollection.coverImage,
+        name: nextCollection.name,
+        summary: nextCollection.summary,
+        tone: nextCollection.tone,
+      });
+      setStatusMessage("Collection created.");
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Failed to create collection.");
+    } finally {
+      setBusy(false);
+    }
+  }, [draft.coverImage, draft.name, draft.summary, draft.tone]);
+
+  const renameSelected = useCallback(async () => {
     if (!selectedCollection || !draft.name.trim()) {
       return;
     }
 
-    setCollections((current) =>
-      current.map((collection) =>
-        collection.id === selectedCollection.id
-          ? {
-              ...collection,
-              coverImage: draft.coverImage.trim() || collection.coverImage,
-              name: draft.name.trim(),
-              summary: draft.summary.trim() || collection.summary,
-              tone: draft.tone.trim() || collection.tone,
-            }
-          : collection,
-      ),
-    );
-  }, [draft.coverImage, draft.name, draft.summary, draft.tone, selectedCollection, setCollections]);
+    setBusy(true);
+    setStatusMessage(null);
+
+    try {
+      const response = await fetch(`/api/collections/${selectedCollection.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: draft.name.trim(),
+          summary: draft.summary.trim(),
+          tone: draft.tone.trim(),
+          cover_image: draft.coverImage.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error ?? "Failed to update collection.");
+      }
+
+      const payload = await response.json();
+      setCollections((current) =>
+        current.map((collection) =>
+          collection.id === selectedCollection.id
+            ? {
+                ...collection,
+                name: payload.collection.name,
+                summary: payload.collection.summary,
+                tone: payload.collection.tone,
+                coverImage: payload.collection.cover_image,
+              }
+            : collection,
+        ),
+      );
+      setStatusMessage("Collection updated.");
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Failed to update collection.");
+    } finally {
+      setBusy(false);
+    }
+  }, [draft.coverImage, draft.name, draft.summary, draft.tone, selectedCollection]);
 
   const deleteCollection = useCallback(
-    (id: string) => {
-      setCollections((current) => current.filter((collection) => collection.id !== id));
-      setSelectedId((current) => {
-        if (current !== id) {
-          return current;
+    async (id: string) => {
+      setBusy(true);
+      setStatusMessage(null);
+
+      try {
+        const response = await fetch(`/api/collections/${id}`, { method: "DELETE" });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          throw new Error(payload?.error ?? "Failed to delete collection.");
         }
-        return collections.find((collection) => collection.id !== id)?.id ?? null;
-      });
+
+        setCollections((current) => current.filter((collection) => collection.id !== id));
+        setSelectedId((current) => (current === id ? null : current));
+        setStatusMessage("Collection deleted.");
+      } catch (error) {
+        setStatusMessage(error instanceof Error ? error.message : "Failed to delete collection.");
+      } finally {
+        setBusy(false);
+      }
     },
-    [collections, setCollections],
+    [],
   );
 
   const handleDrop = useCallback(
@@ -252,13 +301,15 @@ export function CollectionsView({ userId }: { userId: string }) {
         return;
       }
 
-      setCollections((current) => reorder(current, draggingId, targetId));
+      const next = reorder(collections, draggingId, targetId);
+      setCollections(next);
       setDraggingId(null);
+      void syncOrder(next);
     },
-    [draggingId, setCollections],
+    [collections, draggingId, syncOrder],
   );
 
-  const orderedCollections = useMemo(() => collections, [collections]);
+  const orderedCollections = collections;
 
   return (
     <AppShell>
@@ -351,17 +402,18 @@ export function CollectionsView({ userId }: { userId: string }) {
             </div>
 
             <div className="mt-5 flex flex-wrap gap-3">
-              <Button onClick={createCollection}>Create</Button>
-              <Button onClick={renameSelected} variant="secondary">
+              <Button disabled={busy} onClick={createCollection}>
+                Create
+              </Button>
+              <Button disabled={busy} onClick={renameSelected} variant="secondary">
                 Rename
               </Button>
-              <Button
-                onClick={() => selectedId && deleteCollection(selectedId)}
-                variant="ghost"
-              >
+              <Button disabled={busy} onClick={() => selectedId && deleteCollection(selectedId)} variant="ghost">
                 Delete selected
               </Button>
             </div>
+
+            {statusMessage ? <p className="mt-4 text-sm text-muted-strong">{statusMessage}</p> : null}
           </Card>
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -385,7 +437,7 @@ export function CollectionsView({ userId }: { userId: string }) {
                   setDraggingId(id);
                 }}
                 onDrop={handleDrop}
-                onSelect={setSelectedId}
+                onSelect={selectCollection}
               />
             ))}
           </div>

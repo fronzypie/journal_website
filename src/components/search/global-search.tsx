@@ -9,68 +9,11 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
 import { motionEase } from "@/lib/motion";
+import type { SearchDocument } from "@/features/search/data/search-index";
 import {
-  searchDocuments,
-  type SearchDocument,
-} from "@/features/search/data/search-index";
-
-function scoreDocument(document: SearchDocument, query: string) {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) {
-    return 1;
-  }
-
-  const tokens = normalized.split(/\s+/).filter(Boolean);
-  const searchSpace = [
-    document.title,
-    document.content,
-    document.tags.join(" "),
-    document.mood ?? "",
-    document.collection ?? "",
-    document.date ?? "",
-    document.kind,
-  ]
-    .join(" ")
-    .toLowerCase();
-
-  if (!tokens.every((token) => searchSpace.includes(token))) {
-    return 0;
-  }
-
-  let score = 1;
-  if (document.title.toLowerCase().includes(normalized)) {
-    score += 6;
-  }
-  if (document.collection?.toLowerCase().includes(normalized)) {
-    score += 4;
-  }
-  if (document.tags.some((tag) => tag.toLowerCase().includes(normalized))) {
-    score += 3;
-  }
-  if (document.mood?.toLowerCase().includes(normalized)) {
-    score += 2;
-  }
-  if (document.date?.toLowerCase().includes(normalized)) {
-    score += 2;
-  }
-  if (document.content.toLowerCase().includes(normalized)) {
-    score += 1;
-  }
-
-  return score;
-}
-
-function formatResultLabel(document: SearchDocument) {
-  if (document.kind === "collection") {
-    return "Collection";
-  }
-
-  if (document.kind === "page") {
-    return "Page";
-  }
-
-  return "Entry";
-}
+  formatSearchResultLabel,
+  searchAndRankDocuments,
+} from "@/features/search/data/search-utils";
 
 export function GlobalSearch() {
   const router = useRouter();
@@ -78,6 +21,7 @@ export function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [documents, setDocuments] = useState<SearchDocument[]>([]);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -118,25 +62,33 @@ export function GlobalSearch() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [open]);
 
-  const results = useMemo(() => {
-    return searchDocuments
-      .map((document) => ({ document, score: scoreDocument(document, query) }))
-      .filter((item) => item.score > 0)
-      .sort((left, right) => right.score - left.score || left.document.title.localeCompare(right.document.title))
-      .map((item) => item.document);
-  }, [query]);
-
   useEffect(() => {
-    setActiveIndex((current) => {
-      if (results.length === 0) {
-        return 0;
+    const controller = new AbortController();
+
+    async function loadDocuments() {
+      const response = await fetch("/api/search-documents", {
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        return;
       }
 
-      return Math.min(current, results.length - 1);
-    });
-  }, [results.length]);
+      const payload = (await response.json()) as { documents?: SearchDocument[] };
+      setDocuments(payload.documents ?? []);
+    }
 
-  const activeResult = results[activeIndex] ?? null;
+    void loadDocuments();
+
+    return () => controller.abort();
+  }, []);
+
+  const results = useMemo(() => {
+    return searchAndRankDocuments(documents, query);
+  }, [documents, query]);
+
+  const safeActiveIndex = results.length === 0 ? 0 : Math.min(activeIndex, results.length - 1);
+  const activeResult = results[safeActiveIndex] ?? null;
 
   const openSearch = useCallback(() => {
     setOpen(true);
@@ -251,7 +203,7 @@ export function GlobalSearch() {
                     <div className="max-h-[58vh] space-y-3 overflow-y-auto pr-1">
                       {results.length > 0 ? (
                         results.map((document, index) => {
-                          const isActive = index === activeIndex;
+                          const isActive = index === safeActiveIndex;
                           return (
                             <button
                               className={cn(
@@ -267,7 +219,7 @@ export function GlobalSearch() {
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div>
-                                  <p className="text-sm uppercase tracking-[0.2em] text-muted">{formatResultLabel(document)}</p>
+                                  <p className="text-sm uppercase tracking-[0.2em] text-muted">{formatSearchResultLabel(document)}</p>
                                   <h3 className="mt-2 text-lg font-medium text-porcelain">{document.title}</h3>
                                 </div>
                                 <div className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-xs text-muted-strong">

@@ -15,8 +15,8 @@ export async function GET() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   return NextResponse.json({
-    supabaseUrlPresent: Boolean(supabaseUrl) && supabaseUrl !== "https://example.supabase.co",
-    supabaseAnonKeyPresent: Boolean(supabaseAnonKey) && supabaseAnonKey !== "placeholder-anon-key",
+    supabaseUrlPresent: Boolean(supabaseUrl),
+    supabaseAnonKeyPresent: Boolean(supabaseAnonKey),
     serviceRoleKeyPresent: Boolean(serviceRoleKey),
     nodeEnv: process.env.NODE_ENV,
   });

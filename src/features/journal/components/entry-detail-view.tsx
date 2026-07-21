@@ -6,6 +6,7 @@ import { AnchorButton, Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AppShell } from "@/components/layout/app-shell";
 import { Reveal } from "@/features/journal/components/reveal";
+import { renderJournalMarkdown } from "@/lib/markdown";
 
 type EntryData = {
   id: string;
@@ -55,66 +56,6 @@ const moodAccents: Record<string, { bg: string; text: string }> = {
   introspective: { bg: "bg-rose/16 border-rose/30", text: "text-rose" },
 };
 
-function buildMarkdownPreview(markdown: string) {
-  if (!markdown.trim()) {
-    return "<p class='text-muted'>No content.</p>";
-  }
-
-  const escaped = markdown
-    .replace(/&/g, "&")
-    .replace(/</g, "<")
-    .replace(/>/g, ">");
-
-  const lines = escaped.split(/\n/);
-  const html: string[] = [];
-  let inList = false;
-
-  const closeList = () => {
-    if (inList) {
-      html.push("</ul>");
-      inList = false;
-    }
-  };
-
-  const renderInline = (value: string) =>
-    value
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*(.+?)\*/g, "<em>$1</em>");
-
-  lines.forEach((line) => {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      closeList();
-      return;
-    }
-    if (/^#{1,3}\s+/.test(trimmed)) {
-      closeList();
-      const level = Math.min(3, trimmed.match(/^#+/)?.[0].length ?? 1);
-      const content = renderInline(trimmed.replace(/^#{1,3}\s+/, ""));
-      html.push(`<h${level}>${content}</h${level}>`);
-      return;
-    }
-    if (/^>\s+/.test(trimmed)) {
-      closeList();
-      html.push(`<blockquote>${renderInline(trimmed.replace(/^>\s+/, ""))}</blockquote>`);
-      return;
-    }
-    if (/^[-*]\s+/.test(trimmed)) {
-      if (!inList) {
-        html.push("<ul>");
-        inList = true;
-      }
-      html.push(`<li>${renderInline(trimmed.replace(/^[-*]\s+/, ""))}</li>`);
-      return;
-    }
-    closeList();
-    html.push(`<p>${renderInline(trimmed)}</p>`);
-  });
-
-  closeList();
-  return html.join("");
-}
-
 export function EntryDetailView({ entry }: EntryDetailViewProps) {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
@@ -133,7 +74,7 @@ export function EntryDetailView({ entry }: EntryDetailViewProps) {
     }
   }
 
-  const markdownHtml = buildMarkdownPreview(entry.content);
+  const markdownHtml = renderJournalMarkdown(entry.content);
 
   return (
     <AppShell>

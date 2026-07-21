@@ -7,10 +7,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { AnchorButton, Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Reveal } from "@/features/journal/components/reveal";
-import {
-  calendarEntries,
-  type CalendarEntry,
-} from "@/features/journal/data/calendar-data";
+import type { CalendarEntry } from "@/features/journal/data/calendar-data";
 import { motionEase } from "@/lib/motion";
 
 const monthNames = [
@@ -29,6 +26,8 @@ const monthNames = [
 ] as const;
 
 const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const fallbackImage =
+  "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=900&q=80";
 
 const moodStyles: Record<CalendarEntry["mood"], { bg: string; text: string; ring: string }> = {
   clear: {
@@ -65,6 +64,13 @@ type CalendarMonth = {
   year: number;
 };
 
+const emptyMonth: CalendarMonth = {
+  cells: [],
+  label: "No entries yet",
+  monthIndex: 0,
+  year: new Date().getFullYear(),
+};
+
 type DayBucket = {
   entries: CalendarEntry[];
   count: number;
@@ -81,6 +87,27 @@ function toDateKey(date: Date) {
 
 function parseDateKey(dateKey: string) {
   return new Date(`${dateKey}T00:00:00`);
+}
+
+function toCalendarEntry(entry: {
+  content: string;
+  cover_image?: string | null;
+  entry_date: string;
+  excerpt: string;
+  id: string;
+  mood: string;
+  tags: string[] | null;
+  title: string;
+}) {
+  return {
+    id: entry.id,
+    date: entry.entry_date,
+    title: entry.title || "Untitled entry",
+    mood: (entry.mood as CalendarEntry["mood"]) || "still",
+    preview: entry.excerpt || entry.content.slice(0, 120),
+    body: entry.content || entry.excerpt || "",
+    image: entry.cover_image || fallbackImage,
+  } satisfies CalendarEntry;
 }
 
 function formatHeaderDate(dateKey: string) {
@@ -113,15 +140,15 @@ function createMonthGrid(year: number, monthIndex: number) {
   return cells;
 }
 
-function groupEntriesForMonth(year: number, monthIndex: number) {
-  const monthEntries = calendarEntries.filter((entry) => {
-    const entryDate = parseDateKey(entry.date);
-    return entryDate.getFullYear() === year && entryDate.getMonth() === monthIndex;
-  });
-
+function groupEntriesForMonth(entries: CalendarEntry[], year: number, monthIndex: number) {
   const grouped = new Map<string, DayBucket>();
 
-  for (const entry of monthEntries) {
+  for (const entry of entries) {
+    const entryDate = parseDateKey(entry.date);
+    if (entryDate.getFullYear() !== year || entryDate.getMonth() !== monthIndex) {
+      continue;
+    }
+
     const bucket = grouped.get(entry.date);
     if (bucket) {
       bucket.entries.push(entry);
@@ -139,8 +166,12 @@ function groupEntriesForMonth(year: number, monthIndex: number) {
   return grouped;
 }
 
-function getCalendarMonths() {
-  const dates = calendarEntries.map((entry) => parseDateKey(entry.date));
+function getCalendarMonths(entries: CalendarEntry[]) {
+  if (entries.length === 0) {
+    return [];
+  }
+
+  const dates = entries.map((entry) => parseDateKey(entry.date));
   const earliest = new Date(Math.min(...dates.map((date) => date.getTime())));
   const latest = new Date(Math.max(...dates.map((date) => date.getTime())));
   const months: CalendarMonth[] = [];
@@ -168,8 +199,6 @@ function getCalendarMonths() {
 
   return months;
 }
-
-const calendarMonths = getCalendarMonths();
 
 const DayCell = memo(function DayCell({
   day,
@@ -329,23 +358,30 @@ export function CalendarView() {
   const reducedMotion = useReducedMotion();
   const [monthIndex, setMonthIndex] = useState(0);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [entries, setEntries] = useState<CalendarEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const calendarMonths = useMemo(() => getCalendarMonths(entries), [entries]);
 
-  const currentMonth = calendarMonths[monthIndex] ?? calendarMonths[0];
+  const currentMonth = useMemo(
+    () => calendarMonths[monthIndex] ?? calendarMonths[0] ?? emptyMonth,
+    [calendarMonths, monthIndex],
+  );
   const monthBuckets = useMemo(
-    () => groupEntriesForMonth(currentMonth.year, currentMonth.monthIndex),
-    [currentMonth.year, currentMonth.monthIndex],
+    () => (currentMonth ? groupEntriesForMonth(entries, currentMonth.year, currentMonth.monthIndex) : new Map<string, DayBucket>()),
+    [currentMonth, entries],
   );
 
-  useEffect(() => {
+  const firstEntryDate = useMemo(() => {
     const firstEntryDay = currentMonth.cells.find((cell) => cell && monthBuckets.has(toDateKey(cell)));
-    setSelectedDate(firstEntryDay ? toDateKey(firstEntryDay) : null);
-  }, [currentMonth, monthBuckets]);
-
-  const selectedBucket = selectedDate ? monthBuckets.get(selectedDate) ?? null : null;
+    return firstEntryDay ? toDateKey(firstEntryDay) : null;
+  }, [currentMonth.cells, monthBuckets]);
+  const effectiveSelectedDate =
+    selectedDate && monthBuckets.has(selectedDate) ? selectedDate : firstEntryDate;
+  const selectedBucket = effectiveSelectedDate ? monthBuckets.get(effectiveSelectedDate) ?? null : null;
 
   const previousMonth = useCallback(() => {
     setMonthIndex((current) => Math.min(current + 1, calendarMonths.length - 1));
-  }, []);
+  }, [calendarMonths.length]);
 
   const nextMonth = useCallback(() => {
     setMonthIndex((current) => Math.max(current - 1, 0));
@@ -353,6 +389,35 @@ export function CalendarView() {
 
   const selectDay = useCallback((dateKey: string) => {
     setSelectedDate(dateKey);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadEntries() {
+      const response = await fetch("/api/entries", { signal: controller.signal });
+      if (!response.ok) {
+        setLoading(false);
+        return;
+      }
+
+      const payload = (await response.json()) as { entries?: Array<{
+        content: string;
+        cover_image?: string | null;
+        entry_date: string;
+        excerpt: string;
+        id: string;
+        mood: string;
+        tags: string[] | null;
+        title: string;
+      }> };
+
+      setEntries((payload.entries ?? []).map(toCalendarEntry));
+      setLoading(false);
+    }
+
+    void loadEntries();
+    return () => controller.abort();
   }, []);
 
   return (
@@ -372,18 +437,20 @@ export function CalendarView() {
             </div>
 
             <Card className="p-5 sm:p-6" variant="elevated">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="ds-caption">Archive span</p>
-                  <p className="mt-2 text-2xl font-semibold text-porcelain">
-                    {monthNames[calendarMonths[calendarMonths.length - 1]?.monthIndex ?? 0]} {calendarMonths[calendarMonths.length - 1]?.year}
-                  </p>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="ds-caption">Archive span</p>
+                    <p className="mt-2 text-2xl font-semibold text-porcelain">
+                    {calendarMonths.length > 0
+                      ? `${monthNames[calendarMonths[calendarMonths.length - 1].monthIndex]} ${calendarMonths[calendarMonths.length - 1].year}`
+                      : "No entries yet"}
+                    </p>
+                  </div>
+                  <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-muted-strong">
+                  {entries.length} memories
+                  </div>
                 </div>
-                <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-muted-strong">
-                  {calendarEntries.length} memories
-                </div>
-              </div>
-            </Card>
+              </Card>
           </div>
         </Reveal>
 
@@ -405,47 +472,58 @@ export function CalendarView() {
             </AnchorButton>
           </div>
         </div>
-      </section>
+        </section>
+
+        {loading ? (
+          <Card className="mt-8 p-8 text-center" variant="quiet">
+            <p className="text-xl font-semibold text-porcelain">Loading your calendar…</p>
+            <p className="ds-text-body mt-2 text-sm">Fetching your journal entries from Supabase.</p>
+          </Card>
+        ) : null}
 
       <section className="grid gap-6 pb-16 pt-8 lg:grid-cols-[1.15fr_0.85fr]">
-        <Card className="p-4 sm:p-5" variant="quiet">
-          <div className="grid grid-cols-7 gap-2 pb-3 text-center text-xs uppercase tracking-[0.22em] text-muted">
-            {weekdayLabels.map((label) => (
-              <div key={label}>{label}</div>
-            ))}
-          </div>
+          <Card className="p-4 sm:p-5" variant="quiet">
+            <div className="grid grid-cols-7 gap-2 pb-3 text-center text-xs uppercase tracking-[0.22em] text-muted">
+              {weekdayLabels.map((label) => (
+                <div key={label}>{label}</div>
+              ))}
+            </div>
 
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentMonth.label}
-              animate={{ opacity: 1, y: 0 }}
-              className="grid grid-cols-7 gap-2"
-              initial={reducedMotion ? false : { opacity: 0, y: 16 }}
-              transition={{ duration: reducedMotion ? 0 : 0.4, ease: motionEase }}
-            >
-              {currentMonth.cells.map((day, index) => {
-                if (!day) {
-                  return <div className="min-h-36 rounded-[1.25rem] border border-transparent" key={`empty-${index}`} />;
-                }
+            {currentMonth ? (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentMonth.label}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="grid grid-cols-7 gap-2"
+                  initial={reducedMotion ? false : { opacity: 0, y: 16 }}
+                  transition={{ duration: reducedMotion ? 0 : 0.4, ease: motionEase }}
+                >
+                  {currentMonth.cells.map((day, index) => {
+                    if (!day) {
+                      return <div className="min-h-36 rounded-[1.25rem] border border-transparent" key={`empty-${index}`} />;
+                    }
 
-                const dateKey = toDateKey(day);
-                return (
-                  <DayCell
-                    bucket={monthBuckets.get(dateKey)}
-                    day={day}
-                    isActive={day.getMonth() === currentMonth.monthIndex}
-                    isSelected={selectedDate === dateKey}
-                    key={dateKey}
-                    onSelect={selectDay}
-                  />
-                );
-              })}
-            </motion.div>
-          </AnimatePresence>
-        </Card>
+                    const dateKey = toDateKey(day);
+                    return (
+                      <DayCell
+                        bucket={monthBuckets.get(dateKey)}
+                        day={day}
+                        isActive={day.getMonth() === currentMonth.monthIndex}
+                        isSelected={effectiveSelectedDate === dateKey}
+                        key={dateKey}
+                        onSelect={selectDay}
+                      />
+                    );
+                  })}
+                </motion.div>
+              </AnimatePresence>
+            ) : (
+              <div className="py-10 text-center text-sm text-muted">No entries yet.</div>
+            )}
+          </Card>
 
         <div className="space-y-4">
-          <DetailPanel bucket={selectedBucket} dateKey={selectedDate} />
+          <DetailPanel bucket={selectedBucket} dateKey={effectiveSelectedDate} />
           <Card className="p-5 sm:p-6" variant="quiet">
             <p className="ds-caption">Legend</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">

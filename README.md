@@ -54,9 +54,14 @@ The home route remains a Server Component by default. Framer Motion is isolated
 inside `Reveal`, a small Client Component, so the interactive JavaScript surface
 stays intentionally narrow.
 
-Authentication and Supabase are intentionally not implemented yet. The current
-data is typed local seed content so the UI and information architecture can
-mature before persistence is added.
+Authentication and Supabase are partially implemented. Auth routes, session
+guards, protected journal pages, account deletion, entry APIs, collection APIs,
+and an initial RLS-backed Supabase schema are present. Some archive surfaces
+still use typed local seed content while they are being connected to live user
+data.
+
+`src/proxy.ts` contains the Next.js request proxy used for auth redirects on
+protected routes.
 
 ## Design System
 
@@ -108,8 +113,8 @@ hairline shadow, disabled states, and dark-first contrast.
 	- Create/update `.env.local` at the repo root and add:
 
 ```
-SUPABASE_URL=https://<your-project>.supabase.co
-SUPABASE_ANON_KEY=<anon-key>
+NEXT_PUBLIC_SUPABASE_URL=https://<your-project>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 ENABLE_ENV_DEBUG=true
 ```
@@ -118,7 +123,7 @@ ENABLE_ENV_DEBUG=true
 	- `ENABLE_ENV_DEBUG` is optional and used only for a temporary, guarded verification endpoint (described next).
 
 3. Set in production:
-	- Vercel: Project → Settings → Environment Variables → add `SUPABASE_SERVICE_ROLE_KEY` (and `SUPABASE_URL`/`SUPABASE_ANON_KEY`), save and redeploy.
+	- Vercel: Project → Settings → Environment Variables → add `SUPABASE_SERVICE_ROLE_KEY` (and `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY`), save and redeploy.
 	- Netlify/Other: Use equivalent environment/secret settings in your host and redeploy.
 
 4. Optional: temporary verification route
@@ -135,4 +140,3 @@ curl http://localhost:3000/api/debug/env
 5. Security notes
 	- The service role key grants full DB privileges. Never expose it to clients or commit it to source control.
 	- Rotate the key in the Supabase dashboard if it may have been exposed.
-

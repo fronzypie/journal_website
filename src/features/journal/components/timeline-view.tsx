@@ -7,28 +7,16 @@ import { AnchorButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AppShell } from "@/components/layout/app-shell";
 import { Reveal } from "@/features/journal/components/reveal";
-import {
-  timelineMemories,
-  timelineMoodOptions,
-  type TimelineMemory,
-} from "@/features/journal/data/timeline-data";
+import { timelineMoodOptions, type TimelineMemory } from "@/features/journal/data/timeline-data";
 import { motionEase } from "@/lib/motion";
 
 type TimelineViewProps = {
   initialSearch?: string;
 };
 
-type GroupedMemory = {
-  days: Record<string, TimelineMemory[]>;
-  months: Record<string, GroupedMemoryMonth>;
-};
-
-type GroupedMemoryMonth = {
-  days: Record<string, TimelineMemory[]>;
-  items: TimelineMemory[];
-};
-
 const pageSize = 4;
+const fallbackImage =
+  "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=900&q=80";
 const monthOrder = [
   "January",
   "February",
@@ -80,6 +68,37 @@ function matchesSearch(memory: TimelineMemory, query: string) {
 
 function getMonthIndex(month: string) {
   return monthOrder.indexOf(month as (typeof monthOrder)[number]);
+}
+
+function toTimelineMemory(entry: {
+  content: string;
+  cover_image?: string | null;
+  entry_date: string;
+  excerpt: string;
+  id: string;
+  mood: string;
+  tags: string[] | null;
+  title: string;
+}) {
+  const date = new Date(`${entry.entry_date}T00:00:00`);
+  const month = monthOrder[date.getMonth()];
+
+  return {
+    id: entry.id,
+    year: `${date.getFullYear()}`,
+    month,
+    day: `${date.getDate()}`.padStart(2, "0"),
+    date: date.toLocaleDateString("en", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }),
+    title: entry.title || "Untitled entry",
+    preview: entry.excerpt || entry.content.slice(0, 140),
+    mood: (entry.mood as TimelineMemory["mood"]) || "still",
+    tags: entry.tags ?? [],
+    image: entry.cover_image || fallbackImage,
+  } satisfies TimelineMemory;
 }
 
 function MemoryCard({ memory }: { memory: TimelineMemory }) {
@@ -147,8 +166,38 @@ export function TimelineView({ initialSearch = "" }: TimelineViewProps) {
   );
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [visibleCount, setVisibleCount] = useState(pageSize);
+  const [memories, setMemories] = useState<TimelineMemory[]>([]);
+  const [loading, setLoading] = useState(true);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const deferredQuery = useDeferredValue(query);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadEntries() {
+      const response = await fetch("/api/entries", { signal: controller.signal });
+      if (!response.ok) {
+        setLoading(false);
+        return;
+      }
+
+      const payload = (await response.json()) as { entries?: Array<{
+        content: string;
+        cover_image?: string | null;
+        entry_date: string;
+        excerpt: string;
+        id: string;
+        mood: string;
+        tags: string[] | null;
+        title: string;
+      }> };
+      setMemories((payload.entries ?? []).map(toTimelineMemory));
+      setLoading(false);
+    }
+
+    void loadEntries();
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const target = loadMoreRef.current;
@@ -159,7 +208,7 @@ export function TimelineView({ initialSearch = "" }: TimelineViewProps) {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) {
-          setVisibleCount((current) => Math.min(current + pageSize, timelineMemories.length));
+          setVisibleCount((current) => Math.min(current + pageSize, memories.length));
         }
       },
       { rootMargin: "320px 0px" },
@@ -167,29 +216,27 @@ export function TimelineView({ initialSearch = "" }: TimelineViewProps) {
 
     observer.observe(target);
     return () => observer.disconnect();
-  }, []);
+  }, [memories.length]);
 
   const years = useMemo(
-    () => Array.from(new Set(timelineMemories.map((item) => item.year))).sort((a, b) => Number(b) - Number(a)),
-    [],
+    () => Array.from(new Set(memories.map((item) => item.year))).sort((a, b) => Number(b) - Number(a)),
+    [memories],
   );
 
   const filteredMemories = useMemo(() => {
-    return timelineMemories.filter((memory) => {
+    return memories.filter((memory) => {
       const searchMatch = matchesSearch(memory, deferredQuery);
       const moodMatch = selectedMood === "all" || memory.mood === selectedMood;
       const yearMatch = selectedYear === "all" || memory.year === selectedYear;
       return searchMatch && moodMatch && yearMatch;
     });
-  }, [deferredQuery, selectedMood, selectedYear]);
+  }, [deferredQuery, memories, selectedMood, selectedYear]);
 
-  useEffect(() => {
-    setVisibleCount((current) => Math.min(current, filteredMemories.length || pageSize));
-  }, [filteredMemories.length]);
+  const clampedVisibleCount = Math.min(visibleCount, filteredMemories.length || pageSize);
 
   const visibleMemories = useMemo(
-    () => filteredMemories.slice(0, visibleCount),
-    [filteredMemories, visibleCount],
+    () => filteredMemories.slice(0, clampedVisibleCount),
+    [clampedVisibleCount, filteredMemories],
   );
 
   const grouped = useMemo(() => groupMemories(visibleMemories), [visibleMemories]);
@@ -211,7 +258,7 @@ export function TimelineView({ initialSearch = "" }: TimelineViewProps) {
                 <h1 className="mt-3 max-w-4xl text-5xl font-semibold leading-none text-porcelain sm:text-7xl lg:text-8xl">
                   Memories arranged by the way they stayed with you.
                 </h1>
-                <p className="ds-text-body mt-6 max-w-2xl text-lg sm:text-xl">
+                  <p className="ds-text-body mt-6 max-w-2xl text-lg sm:text-xl">
                   Browse moments as lived memory, grouped by year, month, and day.
                   Search what lingered, filter by mood, and keep scrolling as the archive opens.
                 </p>
@@ -220,7 +267,7 @@ export function TimelineView({ initialSearch = "" }: TimelineViewProps) {
               <Card className="p-5 sm:p-6" variant="elevated">
                 <div className="grid gap-3 sm:grid-cols-3">
                   {[
-                    ["Memories", `${timelineMemories.length}`],
+                    ["Memories", `${memories.length}`],
                     ["Visible", `${totalCount}`],
                     ["Years", `${years.length}`],
                   ].map(([label, value]) => (
@@ -283,6 +330,13 @@ export function TimelineView({ initialSearch = "" }: TimelineViewProps) {
             ))}
           </div>
         </section>
+
+        {loading ? (
+          <Card className="mt-8 p-8 text-center" variant="quiet">
+            <p className="text-xl font-semibold text-porcelain">Loading your timeline…</p>
+            <p className="ds-text-body mt-2 text-sm">Fetching your journal entries from Supabase.</p>
+          </Card>
+        ) : null}
 
         <section className="pb-16 pt-8">
           {yearGroups.length > 0 ? (

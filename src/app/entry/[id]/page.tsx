@@ -10,10 +10,22 @@ type EntryPageProps = {
 export async function generateMetadata({ params }: EntryPageProps): Promise<Metadata> {
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      title: "Entry — Aster Journal",
+      description: "View your journal entry.",
+    };
+  }
+
   const { data: entry } = await supabase
     .from("journal_entries")
     .select("title")
     .eq("id", id)
+    .eq("user_id", user.id)
     .single();
 
   return {

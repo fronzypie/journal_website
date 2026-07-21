@@ -4,63 +4,57 @@ import { motion, useReducedMotion } from "framer-motion";
 import { AnchorButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
+type DashboardEntry = {
+  id: string;
+  entryDate: string;
+  mood: string;
+  readingTimeMinutes: number;
+  title: string;
+  updatedAt: string;
+  isPinned: boolean;
+};
+
+type DashboardCollection = {
+  id: string;
+  name: string;
+  itemCount?: number;
+};
+
 type DashboardViewProps = {
   displayDate: string;
   greeting: string;
   streak: number;
+  collections: DashboardCollection[];
+  favoriteEntries: DashboardEntry[];
+  recentEntries: DashboardEntry[];
+  activity: Array<{ detail: string; title: string }>;
   userName: string;
 };
 
-const recentEntries = [
-  {
-    title: "After the rain",
-    meta: "Stillness • 6 min read",
-  },
-  {
-    title: "A quieter kind of ambition",
-    meta: "Clarity • 9 min read",
-  },
-  {
-    title: "What I learned from leaving early",
-    meta: "Tender • 4 min read",
-  },
-];
+function formatActivityDate(dateString: string) {
+  const diffMs = Date.now() - new Date(dateString).getTime();
+  const diffMinutes = Math.max(1, Math.round(diffMs / 60000));
 
-const favoriteEntries = [
-  {
-    title: "The shape of a calm week",
-    meta: "Pinned • 12 entries",
-  },
-  {
-    title: "Notes from dusk",
-    meta: "Favorite • 7 entries",
-  },
-];
+  if (diffMinutes < 60) {
+    return `${diffMinutes} minute${diffMinutes === 1 ? "" : "s"} ago`;
+  }
 
-const collections = [
-  "Morning pages",
-  "Seasonal reflections",
-  "Quiet rituals",
-];
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+  }
 
-const activity = [
-  {
-    title: "Added a new reflection",
-    detail: "6 minutes ago",
-  },
-  {
-    title: "Updated your weekly prompt",
-    detail: "Yesterday",
-  },
-  {
-    title: "Opened your favorite collection",
-    detail: "2 days ago",
-  },
-];
+  const diffDays = Math.round(diffHours / 24);
+  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+}
 
 export function DashboardView({
   displayDate,
   greeting,
+  activity,
+  collections,
+  favoriteEntries,
+  recentEntries,
   streak,
   userName,
 }: DashboardViewProps) {
@@ -134,10 +128,12 @@ export function DashboardView({
                 {recentEntries.map((entry) => (
                   <div
                     className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"
-                    key={entry.title}
+                    key={entry.id}
                   >
                     <p className="font-medium text-porcelain">{entry.title}</p>
-                    <p className="mt-1 text-sm text-muted">{entry.meta}</p>
+                    <p className="mt-1 text-sm text-muted">
+                      {entry.mood} • {entry.readingTimeMinutes} min read
+                    </p>
                   </div>
                 ))}
               </div>
@@ -158,10 +154,12 @@ export function DashboardView({
                 {favoriteEntries.map((entry) => (
                   <div
                     className="rounded-2xl border border-white/10 bg-black/10 p-4"
-                    key={entry.title}
+                    key={entry.id}
                   >
                     <p className="font-medium text-porcelain">{entry.title}</p>
-                    <p className="mt-1 text-sm text-muted">{entry.meta}</p>
+                    <p className="mt-1 text-sm text-muted">
+                      Pinned entry • updated {formatActivityDate(entry.updatedAt)}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -184,9 +182,9 @@ export function DashboardView({
                 {collections.map((collection) => (
                   <span
                     className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-2 text-sm text-muted-strong"
-                    key={collection}
+                    key={collection.id}
                   >
-                    {collection}
+                    {collection.name}
                   </span>
                 ))}
               </div>
