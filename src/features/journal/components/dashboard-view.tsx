@@ -99,7 +99,7 @@ export function DashboardView({
 
           <div className="mt-8 flex flex-wrap gap-3">
             <AnchorButton href="/write">New entry</AnchorButton>
-            <AnchorButton href="#recent-entries" variant="secondary">
+            <AnchorButton href="#quick-write" variant="secondary">
               Review entries
             </AnchorButton>
           </div>
