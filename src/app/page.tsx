@@ -1,5 +1,5 @@
-import { JournalHome } from "@/features/journal/components/journal-home";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return <JournalHome />;
+  redirect("/login");
 }
