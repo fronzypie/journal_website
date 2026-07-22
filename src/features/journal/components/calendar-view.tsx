@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Image from "next/image";
+import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { AnchorButton, Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -341,10 +342,14 @@ const DetailPanel = memo(function DetailPanel({
 
             <div className="grid gap-3 sm:grid-cols-2">
               {bucket.entries.map((entry) => (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4" key={entry.id}>
+                <Link
+                  href={`/entry/${entry.id}`}
+                  className="block rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:bg-white/[0.05]"
+                  key={entry.id}
+                >
                   <p className="text-sm font-medium text-porcelain">{entry.title}</p>
                   <p className="mt-2 text-sm leading-6 text-muted-strong">{entry.preview}</p>
-                </div>
+                </Link>
               ))}
             </div>
           </div>

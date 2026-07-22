@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { AnchorButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -126,15 +127,16 @@ export function DashboardView({
 
               <div className="mt-6 space-y-3">
                 {recentEntries.map((entry) => (
-                  <div
-                    className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"
+                  <Link
+                    href={`/entry/${entry.id}`}
+                    className="block rounded-2xl border border-white/10 bg-white/[0.035] p-4 transition-colors hover:bg-white/[0.06]"
                     key={entry.id}
                   >
                     <p className="font-medium text-porcelain">{entry.title}</p>
                     <p className="mt-1 text-sm text-muted">
                       {entry.mood} • {entry.readingTimeMinutes} min read
                     </p>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </Card>
@@ -152,15 +154,16 @@ export function DashboardView({
 
               <div className="mt-6 space-y-3">
                 {favoriteEntries.map((entry) => (
-                  <div
-                    className="rounded-2xl border border-white/10 bg-black/10 p-4"
+                  <Link
+                    href={`/entry/${entry.id}`}
+                    className="block rounded-2xl border border-white/10 bg-black/10 p-4 transition-colors hover:bg-white/[0.04]"
                     key={entry.id}
                   >
                     <p className="font-medium text-porcelain">{entry.title}</p>
                     <p className="mt-1 text-sm text-muted">
                       Pinned entry • updated {formatActivityDate(entry.updatedAt)}
                     </p>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </Card>

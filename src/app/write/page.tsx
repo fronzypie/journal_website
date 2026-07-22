@@ -8,7 +8,9 @@ export const metadata: Metadata = {
   description: "A calm, distraction-free space for your journal entries.",
 };
 
-export default async function WritePage() {
+export default async function WritePage(props: { searchParams: Promise<{ id?: string }> }) {
+  const searchParams = await props.searchParams;
+  const entryId = searchParams.id;
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -22,6 +24,7 @@ export default async function WritePage() {
     <DistractionFreeEditor
       userId={user.id}
       userName={user.user_metadata?.full_name || user.email?.split("@")[0] || "friend"}
+      entryId={entryId}
     />
   );
 }

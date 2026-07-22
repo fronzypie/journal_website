@@ -3,6 +3,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import Image from "next/image";
+import Link from "next/link";
 import { AnchorButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AppShell } from "@/components/layout/app-shell";
@@ -105,56 +106,58 @@ function MemoryCard({ memory }: { memory: TimelineMemory }) {
   const reducedMotion = useReducedMotion();
 
   return (
-    <motion.article
-      className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.035] shadow-soft"
-      initial={reducedMotion ? false : { opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: reducedMotion ? 0 : 0.42, ease: motionEase }}
-      whileHover={reducedMotion ? undefined : { y: -4 }}
-    >
-      <div className="grid gap-0 md:grid-cols-[0.92fr_1.08fr]">
-        <div className="relative min-h-52 overflow-hidden">
-          <Image
-            alt={memory.title}
-            className="object-cover"
-            fill
-            sizes="(max-width: 768px) 100vw, 46vw"
-            src={memory.image}
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,8,9,0.05),rgba(7,8,9,0.68))]" />
-          <div className="absolute left-4 top-4 rounded-full border border-white/15 bg-black/25 px-3 py-1 text-xs font-medium uppercase tracking-[0.22em] text-porcelain backdrop-blur-md">
-            Memory
+    <Link href={`/entry/${memory.id}`} className="block focus:outline-none">
+      <motion.article
+        className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.035] shadow-soft"
+        initial={reducedMotion ? false : { opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: reducedMotion ? 0 : 0.42, ease: motionEase }}
+        whileHover={reducedMotion ? undefined : { y: -4 }}
+      >
+        <div className="grid gap-0 md:grid-cols-[0.92fr_1.08fr]">
+          <div className="relative min-h-52 overflow-hidden">
+            <Image
+              alt={memory.title}
+              className="object-cover"
+              fill
+              sizes="(max-width: 768px) 100vw, 46vw"
+              src={memory.image}
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,8,9,0.05),rgba(7,8,9,0.68))]" />
+            <div className="absolute left-4 top-4 rounded-full border border-white/15 bg-black/25 px-3 py-1 text-xs font-medium uppercase tracking-[0.22em] text-porcelain backdrop-blur-md">
+              Memory
+            </div>
+            <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-sm text-white/72">{memory.date}</p>
+                <p className="mt-1 text-xl font-medium text-porcelain">{memory.title}</p>
+              </div>
+              <div className="rounded-full border border-white/15 bg-black/25 px-3 py-1 text-xs uppercase tracking-[0.18em] text-porcelain backdrop-blur-md">
+                {memory.mood}
+              </div>
+            </div>
           </div>
-          <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3">
+
+          <div className="flex flex-col justify-between p-5 sm:p-6">
             <div>
-              <p className="text-sm text-white/72">{memory.date}</p>
-              <p className="mt-1 text-xl font-medium text-porcelain">{memory.title}</p>
+              <p className="ds-caption">Preview</p>
+              <p className="mt-3 text-sm leading-7 text-muted-strong">{memory.preview}</p>
             </div>
-            <div className="rounded-full border border-white/15 bg-black/25 px-3 py-1 text-xs uppercase tracking-[0.18em] text-porcelain backdrop-blur-md">
-              {memory.mood}
+
+            <div className="mt-6 flex flex-wrap gap-2">
+              {memory.tags.map((tag) => (
+                <span
+                  className="rounded-full border border-white/10 bg-black/15 px-3 py-1 text-xs text-muted-strong"
+                  key={tag}
+                >
+                  {tag}
+                </span>
+              ))}
             </div>
           </div>
         </div>
-
-        <div className="flex flex-col justify-between p-5 sm:p-6">
-          <div>
-            <p className="ds-caption">Preview</p>
-            <p className="mt-3 text-sm leading-7 text-muted-strong">{memory.preview}</p>
-          </div>
-
-          <div className="mt-6 flex flex-wrap gap-2">
-            {memory.tags.map((tag) => (
-              <span
-                className="rounded-full border border-white/10 bg-black/15 px-3 py-1 text-xs text-muted-strong"
-                key={tag}
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-    </motion.article>
+      </motion.article>
+    </Link>
   );
 }
 

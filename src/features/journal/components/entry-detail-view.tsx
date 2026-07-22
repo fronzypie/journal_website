@@ -159,7 +159,7 @@ export function EntryDetailView({ entry }: EntryDetailViewProps) {
             <Card className="p-5 sm:p-6" variant="quiet">
               <p className="ds-caption">Actions</p>
               <div className="mt-4 flex flex-col gap-3">
-                <AnchorButton href={`/write`} variant="secondary">
+                <AnchorButton href={`/write?id=${entry.id}`} variant="secondary">
                   Back to editor
                 </AnchorButton>
                 <AnchorButton href="/dashboard" variant="ghost">

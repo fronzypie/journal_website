@@ -6,10 +6,12 @@ export const metadata: Metadata = {
   description: "Browse your journal memories arranged by year, month, and day.",
 };
 
-export default function TimelinePage({
+export default async function TimelinePage({
   searchParams,
 }: {
-  searchParams?: { q?: string };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  return <TimelineView initialSearch={searchParams?.q ?? ""} />;
+  const params = await searchParams;
+  const q = typeof params.q === "string" ? params.q : "";
+  return <TimelineView initialSearch={q} />;
 }
