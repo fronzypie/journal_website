@@ -9,6 +9,10 @@ type EditorProps = {
   userId: string;
   userName: string;
   entryId?: string;
+  initialTitle?: string;
+  initialContent?: string;
+  initialMood?: string;
+  initialTags?: string;
 };
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -29,22 +33,22 @@ const moodOptions = [
   { value: "restless", label: "Restless" },
 ];
 
-function getStorageKey(userId: string) {
-  return `journal-editor:${userId}`;
+function getStorageKey(userId: string, entryId?: string | null) {
+  return `journal-editor:${userId}:${entryId ?? "new"}`;
 }
 
-export function DistractionFreeEditor({ userId, userName, entryId }: EditorProps) {
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [mood, setMood] = useState("calm");
-  const [tagsInput, setTagsInput] = useState("");
+export function DistractionFreeEditor({ userId, userName, entryId, initialTitle, initialContent, initialMood, initialTags }: EditorProps) {
+  const [title, setTitle] = useState(initialTitle ?? "");
+  const [content, setContent] = useState(initialContent ?? "");
+  const [mood, setMood] = useState(initialMood ?? "calm");
+  const [tagsInput, setTagsInput] = useState(initialTags ?? "");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [currentEntryId, setCurrentEntryId] = useState<string | null>(entryId ?? null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const storageKey = useMemo(() => getStorageKey(userId), [userId]);
+  const storageKey = useMemo(() => getStorageKey(userId, currentEntryId), [userId, currentEntryId]);
   const deferredContent = useDeferredValue(content);
 
   useEffect(() => {
@@ -146,6 +150,8 @@ export function DistractionFreeEditor({ userId, userName, entryId }: EditorProps
 
       const payload = await response.json();
       const newId = payload.entry.id;
+      window.localStorage.removeItem(getStorageKey(userId, null)); // clear the 'new' draft
+      window.history.replaceState(null, "", `/write?id=${newId}`);
       setCurrentEntryId(newId);
 
       setLastSavedAt(

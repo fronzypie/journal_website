@@ -124,6 +124,7 @@ export default async function DashboardPage() {
   }));
 
   const activity = recent.slice(0, 3).map((entry) => ({
+    id: entry.id,
     title: entry.title || "Untitled entry",
     detail: new Date(entry.updatedAt).toLocaleDateString("en", {
       month: "short",

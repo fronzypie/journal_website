@@ -22,10 +22,12 @@ type EntryData = {
   created_at: string;
   updated_at: string;
   cover_image?: string;
+  collection_id?: string | null;
 };
 
 type EntryDetailViewProps = {
   entry: EntryData;
+  collections: { id: string; name: string }[];
 };
 
 function formatDate(dateString: string) {
@@ -56,10 +58,22 @@ const moodAccents: Record<string, { bg: string; text: string }> = {
   introspective: { bg: "bg-rose/16 border-rose/30", text: "text-rose" },
 };
 
-export function EntryDetailView({ entry }: EntryDetailViewProps) {
+export function EntryDetailView({ entry, collections }: EntryDetailViewProps) {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
+  const [moving, setMoving] = useState(false);
   const accent = moodAccents[entry.mood] ?? moodAccents.calm;
+
+  async function handleMoveToCollection(collectionId: string) {
+    setMoving(true);
+    await fetch(`/api/entries/${entry.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ collection_id: collectionId || null }),
+    });
+    router.refresh();
+    setMoving(false);
+  }
 
   async function handleDelete() {
     if (!window.confirm("Delete this entry? This cannot be undone.")) {
@@ -159,6 +173,22 @@ export function EntryDetailView({ entry }: EntryDetailViewProps) {
             <Card className="p-5 sm:p-6" variant="quiet">
               <p className="ds-caption">Actions</p>
               <div className="mt-4 flex flex-col gap-3">
+                <label className="flex flex-col gap-2 mb-2">
+                  <span className="text-xs uppercase tracking-[0.2em] text-muted">Collection</span>
+                  <select
+                    className="rounded-lg border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-porcelain outline-none"
+                    value={entry.collection_id || ""}
+                    onChange={(e) => handleMoveToCollection(e.target.value)}
+                    disabled={moving}
+                  >
+                    <option value="">None (Uncategorized)</option>
+                    {collections.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <AnchorButton href={`/write?id=${entry.id}`} variant="secondary">
                   Back to editor
                 </AnchorButton>

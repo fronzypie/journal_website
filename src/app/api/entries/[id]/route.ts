@@ -46,7 +46,7 @@ export async function PATCH(request: Request, { params }: { params: RouteParams 
 
   const { id } = await params;
   const body = await request.json();
-  const { title, content, mood, tags, is_pinned } = body;
+  const { title, content, mood, tags, is_pinned, collection_id } = body;
 
   const updateData: Record<string, unknown> = {};
   if (title !== undefined) updateData.title = title;
@@ -60,6 +60,7 @@ export async function PATCH(request: Request, { params }: { params: RouteParams 
   if (mood !== undefined) updateData.mood = mood;
   if (tags !== undefined) updateData.tags = tags;
   if (is_pinned !== undefined) updateData.is_pinned = is_pinned;
+  if (collection_id !== undefined) updateData.collection_id = collection_id;
 
   const { data, error } = await supabase
     .from("journal_entries")

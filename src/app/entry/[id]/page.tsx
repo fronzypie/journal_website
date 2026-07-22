@@ -56,5 +56,11 @@ export default async function EntryDetailPage({ params }: EntryPageProps) {
     redirect("/dashboard");
   }
 
-  return <EntryDetailView entry={entry} />;
+  const { data: collections } = await supabase
+    .from("journal_collections")
+    .select("id, name")
+    .eq("user_id", user.id)
+    .order("sort_order", { ascending: true });
+
+  return <EntryDetailView entry={entry} collections={collections || []} />;
 }

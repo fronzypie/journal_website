@@ -28,7 +28,7 @@ type DashboardViewProps = {
   collections: DashboardCollection[];
   favoriteEntries: DashboardEntry[];
   recentEntries: DashboardEntry[];
-  activity: Array<{ detail: string; title: string }>;
+  activity: Array<{ id: string; detail: string; title: string }>;
   userName: string;
 };
 
@@ -212,16 +212,17 @@ export function DashboardView({
 
               <div className="mt-6 space-y-3">
                 {activity.map((item) => (
-                  <div
-                    className="flex items-start justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4"
-                    key={item.title}
+                  <Link
+                    href={`/entry/${item.id}`}
+                    className="flex items-start justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:bg-white/[0.06]"
+                    key={item.id}
                   >
                     <div>
                       <p className="font-medium text-porcelain">{item.title}</p>
                       <p className="mt-1 text-sm text-muted">{item.detail}</p>
                     </div>
                     <div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-sage" />
-                  </div>
+                  </Link>
                 ))}
               </div>
             </Card>
